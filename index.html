@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BIBISHA — Mon seul amour</title>
+  <style>
+    /* Reset */
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(135deg,#ffb3d6 0%, #d2a0ff 45%, #b892ff 100%);
+      color:#fff; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      overflow:hidden;
+    }
+
+    /* Container centré */
+    .wrap{
+      min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:32px;
+      position:relative;z-index:3;text-align:center;
+    }
+
+    /* Neon title */
+    .title{
+      font-size: clamp(20px,6vw,52px);
+      letter-spacing:3px;
+      font-weight:900;
+      color:#ff2b66;
+      text-transform:uppercase;
+      text-shadow:
+        0 0 8px rgba(255,43,102,0.95),
+        0 0 20px rgba(255,43,102,0.6),
+        0 0 40px rgba(255,0,102,0.18);
+      -webkit-text-stroke: 0.6px rgba(0,0,0,0.12);
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+
+    /* Card with the changing text */
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      padding: 30px 24px; border-radius:18px; backdrop-filter: blur(6px);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+      max-width:920px; width:100%;
+    }
+
+    .phrase{
+      font-size: clamp(16px,4.5vw,28px);
+      line-height:1.4;
+      cursor:pointer;
+      user-select:none;
+      padding: 8px 12px;
+      transition: transform .16s ease, opacity .16s ease;
+      transform-origin:center;
+      color: #fff;
+    }
+    .phrase:active{transform:scale(.995)}
+    .hint{font-size:13px;color:rgba(255,255,255,0.78);margin-top:10px}
+
+    /* Video */
+    .video-wrap{width:100%;max-width:760px;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.45)}
+    .video-wrap iframe{width:100%;height:420px;border:0;display:block}
+    @media (max-width:420px){ .video-wrap iframe{height:230px} .phrase{font-size:18px} }
+
+    /* Floating emojis layer */
+    .floating-layer{position:fixed;inset:0;pointer-events:none;z-index:1;}
+    .float{
+      position:absolute;will-change:transform,opacity;filter:drop-shadow(0 8px 12px rgba(0,0,0,0.25));
+      font-size:20px;opacity:0.95;transform-origin:center center;display:inline-block;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.03);
+      transition: transform .2s linear;
+    }
+
+    /* Make some pixel-like look using transform and monospace */
+    .pixel{font-family: 'Courier New', Courier, monospace; font-weight:700; text-rendering: geometricPrecision;}
+
+    /* subtle vignette to focus center */
+    .vignette{position:fixed;inset:0;pointer-events:none;z-index:2;background: radial-gradient(60% 60% at 50% 45%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 60%, rgba(0,0,0,0.28) 100%);}
+
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <div class="title" aria-hidden="false">BIBISHA MON SEUL AMOUR</div>
+
+    <div class="card" id="card" role="button" aria-label="Zone de phrase, cliquer pour changer">
+      <div id="phrase" class="phrase" aria-live="polite" tabindex="0">
+        <!-- phrase injected by JS -->
+      </div>
+      <div class="hint">Clique n'importe où sur la carte (ou appuie sur Entrée/Espace) pour la phrase suivante</div>
+    </div>
+
+    <div class="video-wrap" aria-hidden="false">
+      <!-- YouTube embed (modifiable) -->
+      <iframe id="yt" src="https://www.youtube.com/embed/0DJrboYdDuw" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+    </div>
+  </div>
+
+  <!-- floating emojis layer -->
+  <div class="floating-layer" id="floating"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <script>
+    /*********************
+     * PHRASES (déjà fournies)
+     *********************/
+    const phrases = [
+      "salut bibisha, je t'appelle bibisha car j'aime pas t'appeler autrement",
+      "j'ai merdé (comme d'habitude tu dira)",
+      "tu as raison je suis emotionellement immature et irresponsable j'assume",
+      "je n'ai pas su gérer et je pensais bien faire et que ça allait te rassurer",
+      "moi même je suis jaloux de tout le monde autour de toi je te veux pour moi tout seul",
+      "j'ai des nausées sans toi et tu me manques énormément",
+      "je t'aime de tout mon coeur même si tu ne trouves pas ton bonheur avec moi",
+      "j'ai peur de te faire d'avantage de mal",
+      "je ne te veux que pour moi et ça me rends malade je ne sais pas si je suis fou ou juste trop amoureux",
+      "je suis désolé pour tout excuse moi s'il te plaît",
+      "je t'aime vraiment de tou mon coeur"
+    ];
+
+    // phrase DOM
+    const phraseEl = document.getElementById('phrase');
+    let index = 0;
+
+    function showPhrase(i){
+      const text = phrases[i] || '';
+      // small fade + scale animation
+      phraseEl.style.opacity = 0;
+      phraseEl.style.transform = 'scale(0.98)';
+      setTimeout(()=>{
+        phraseEl.textContent = text;
+        phraseEl.style.opacity = 1;
+        phraseEl.style.transform = 'scale(1)';
+      },120);
+    }
+
+    // initial
+    showPhrase(index);
+
+    // advance function (loops to start)
+    function nextPhrase(){
+      index = (index + 1) % phrases.length;
+      showPhrase(index);
+    }
+
+    // interactions
+    phraseEl.addEventListener('click', nextPhrase);
+    phraseEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); nextPhrase(); } });
+
+    // also allow clicking the whole card (but avoid double invoking if phrase clicked)
+    document.getElementById('card').addEventListener('click', (e)=>{
+      if(e.target.id !== 'yt') nextPhrase();
+    });
+
+    /***********************
+     * Floating emojis logic
+     ************************/
+    const floating = document.getElementById('floating');
+    const icons = ['❤️','💖','💜','🌸','🌺','🌷','💕','💞','🌼','🌹'];
+
+    function random(min, max){ return Math.random()*(max-min)+min; }
+
+    // create floating elements
+    function createFloating(count=24){
+      for(let i=0;i<count;i++){
+        const el = document.createElement('div');
+        el.className = 'float pixel';
+        el.textContent = icons[Math.floor(Math.random()*icons.length)];
+
+        // random size
+        const size = Math.floor(random(18,44));
+        el.style.fontSize = size + 'px';
+
+        // starting position - around the viewport
+        const left = random(-10, 100); // allow off-screen start
+        const top = random(0, 100);
+        el.style.left = left + 'vw';
+        el.style.top = top + 'vh';
+
+        // save anim params
+        el._speed = random(6, 18);        // how fast the vertical loop is
+        el._amp = random(8, 40);          // horizontal amplitude
+        el._drift = random(-12, 12);      // slow lateral drift
+        el._phase = random(0, Math.PI*2); // phase offset
+        el._rotation = random(-25,25);
+        el._opacity = random(0.7,1);
+
+        el.style.opacity = el._opacity;
+        el.style.transform = `rotate(${el._rotation}deg)`;
+
+        floating.appendChild(el);
+      }
+    }
+
+    createFloating(30);
+
+    // animation loop
+    let start = null;
+    function animate(t){
+      if(!start) start = t;
+      const elapsed = (t-start)/1000; // seconds
+      const nodes = floating.children;
+      for(let i=0;i<nodes.length;i++){
+        const n = nodes[i];
+        const speed = n._speed;
+        const amp = n._amp;
+        const drift = n._drift;
+        const phase = n._phase;
+        const rot = n._rotation;
+
+        // vertical motion: slow sine + upward drift
+        const vy = Math.sin(elapsed/speed + phase) * 8; // subtle y sin
+        // we want slow upward motion overall
+        const up = - (elapsed * (6 / speed)); // upward movement scaled by speed
+
+        // compute new top in vh (we parse original top which may have 'vh')
+        // safer approach: use transform translate to move elements smoothly
+        const tx = Math.sin(elapsed*0.9 + phase) * amp + drift;
+        const ty = up + vy;
+
+        // apply transform relative to original left/top via translate
+        n.style.transform = `translate(${tx}px, ${ty}px) rotate(${rot}deg)`;
+        // slowly pulse opacity a bit
+        const op = 0.85 + Math.sin(elapsed*1.2 + i) * 0.08;
+        n.style.opacity = Math.max(0.35, Math.min(1, op));
+      }
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    /***********************
+     * Optional: make sure video ID is settable
+     ************************/
+    // If you ever want to change the video by JS:
+    // const ytEl = document.getElementById('yt');
+    // ytEl.src = 'https://www.youtube.com/embed/YOUR_VIDEO_ID';
+
+    /***********************
+     * Small accessibility: focus phrase on load
+     ************************/
+    window.setTimeout(()=>{ try{ phraseEl.focus(); }catch(e){} },300);
+
+  </script>
+</body>
+</html>
